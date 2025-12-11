@@ -60,6 +60,26 @@ conda activate pg
 
 See https://www.pygimli.org/installation.html for more information.
 
+##### GPU/CUDA Support (Optional)
+
+pyGIMLi now supports GPU acceleration for travel time inversion using CUDA. This can significantly speed up computations for large-scale problems. To enable CUDA support:
+
+1. Install CUDA Toolkit (11.0 or higher)
+2. Build pyGIMLi with `-DUSE_CUDA=ON` flag
+3. Use `useCuda=True` when creating a TravelTimeManager
+
+```python
+from pygimli.physics import TravelTimeManager
+
+# Check if CUDA is available
+if TravelTimeManager.cudaAvailable():
+    mgr = TravelTimeManager(useCuda=True)
+else:
+    mgr = TravelTimeManager()
+```
+
+See [doc/GPU_CUDA_SUPPORT.md](doc/GPU_CUDA_SUPPORT.md) for detailed documentation.
+
 ##### Import convention
 
 ```python
