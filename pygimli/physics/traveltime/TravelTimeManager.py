@@ -27,10 +27,14 @@ class TravelTimeManager(MeshMethodManager):
         data: :gimliapi:`GIMLI::DataContainer` | str
             You can initialize the Manager with data or give them a dataset
             when calling the inversion.
+        useCuda: bool [False]
+            Enable CUDA acceleration for GPU computing if available.
+            Falls back to CPU if CUDA is not available.
         """
         self.useFatray = kwargs.pop("fatray", False)
         self.frequency = kwargs.pop("frequency", 100.)
         self.secNodes = kwargs.pop("secNodes", 2)
+        self.useCudaFlag = kwargs.pop("useCuda", False)
 
         super().__init__(data=data, **kwargs)
 
@@ -53,9 +57,46 @@ class TravelTimeManager(MeshMethodManager):
         if self.useFatray:
             fop = FatrayDijkstraModelling(frequency=self.frequency, **kwargs)
         else:
-            fop = TravelTimeDijkstraModelling(verbose=self.verbose)
+            fop = TravelTimeDijkstraModelling(verbose=self.verbose, 
+                                             useCuda=self.useCudaFlag)
         return fop
 
+
+    def setUseCuda(self, useCuda):
+        """Enable or disable CUDA acceleration.
+        
+        Parameters
+        ----------
+        useCuda : bool
+            Enable CUDA acceleration if True.
+        """
+        self.useCudaFlag = useCuda
+        if hasattr(self, 'fop') and self.fop is not None:
+            self.fop.setUseCuda(useCuda)
+    
+    def useCuda(self):
+        """Check if CUDA acceleration is enabled.
+        
+        Returns
+        -------
+        bool
+            True if CUDA is enabled.
+        """
+        if hasattr(self, 'fop') and self.fop is not None:
+            return self.fop.useCuda()
+        return self.useCudaFlag
+    
+    @staticmethod
+    def cudaAvailable():
+        """Check if CUDA is available at runtime.
+        
+        Returns
+        -------
+        bool
+            True if CUDA is available, False otherwise.
+        """
+        from .modelling import TravelTimeDijkstraModelling
+        return TravelTimeDijkstraModelling.cudaAvailable()
 
     def load(self, fileName):
         """Load any supported data file."""

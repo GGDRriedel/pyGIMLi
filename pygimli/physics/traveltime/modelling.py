@@ -10,10 +10,22 @@ from .plotting import drawVA
 
 
 class TravelTimeDijkstraModelling(MeshModelling):
-    """Forward modelling class for traveltime using Dijktras method."""
+    """Forward modelling class for traveltime using Dijktras method.
+    
+    Parameters
+    ----------
+    secNodes : int [3]
+        Number of secondary nodes for mesh refinement.
+    useCuda : bool [False]
+        Enable CUDA acceleration if available. Falls back to CPU if CUDA
+        is not available or if computation fails.
+    **kwargs
+        Additional keyword arguments passed to parent class.
+    """
 
     def __init__(self, **kwargs):
         secNodes = kwargs.pop("secNodes", 3)
+        useCuda = kwargs.pop("useCuda", False)
         super().__init__(**kwargs)
 
         self._core = pg.core.TravelTimeDijkstraModelling()
@@ -26,6 +38,9 @@ class TravelTimeDijkstraModelling(MeshModelling):
         self.setThreadCount = self._core.setThreadCount
         # self.createJacobian = self.dijkstra.createJacobian
         self.setJacobian(self._core.jacobian())
+        
+        # Set CUDA usage
+        self.setUseCuda(useCuda)
 
     @property
     def dijkstra(self):
@@ -35,6 +50,38 @@ class TravelTimeDijkstraModelling(MeshModelling):
     # def regionManagerRef(self):
     #     """Region manager reference (core Dijkstra has an own!)."""
     #     return self._core.regionManagerRef()
+
+    def setUseCuda(self, useCuda):
+        """Enable or disable CUDA acceleration.
+        
+        Parameters
+        ----------
+        useCuda : bool
+            Enable CUDA acceleration if True. Falls back to CPU if CUDA
+            is not available.
+        """
+        self._core.setUseCuda(useCuda)
+    
+    def useCuda(self):
+        """Check if CUDA acceleration is enabled.
+        
+        Returns
+        -------
+        bool
+            True if CUDA is enabled, False otherwise.
+        """
+        return self._core.useCuda()
+    
+    @staticmethod
+    def cudaAvailable():
+        """Check if CUDA is available at runtime.
+        
+        Returns
+        -------
+        bool
+            True if CUDA is available, False otherwise.
+        """
+        return pg.core.TravelTimeDijkstraModelling.cudaAvailable()
 
     def createRefinedFwdMesh(self, mesh):
         """Refine the current mesh for higher accuracy.
