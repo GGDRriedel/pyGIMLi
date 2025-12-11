@@ -66,6 +66,20 @@ __global__ void initDijkstraKernel(double* distances, bool* visited, int* parent
     }
 }
 
+// Device function for atomic min with double precision
+__device__ double atomicMinDouble(double* address, double val) {
+    unsigned long long int* address_as_ull = (unsigned long long int*)address;
+    unsigned long long int old = *address_as_ull, assumed;
+    
+    do {
+        assumed = old;
+        old = atomicCAS(address_as_ull, assumed,
+            __double_as_longlong(fmin(val, __longlong_as_double(assumed))));
+    } while (assumed != old);
+    
+    return __longlong_as_double(old);
+}
+
 // CUDA kernel for relaxation step in Dijkstra's algorithm
 __global__ void relaxEdgesKernel(const int* rowPtr, const int* colIdx, 
                                   const double* values, double* distances,
@@ -86,10 +100,9 @@ __global__ void relaxEdgesKernel(const int* rowPtr, const int* colIdx,
     
     if (!visited[neighbor]) {
         double newDist = distances[currentNode] + edgeWeight;
-        double oldDist = atomicMin((unsigned long long*)&distances[neighbor], 
-                                    __double_as_longlong(newDist));
+        double oldDist = atomicMinDouble(&distances[neighbor], newDist);
         
-        if (__longlong_as_double(oldDist) > newDist) {
+        if (oldDist > newDist) {
             parent[neighbor] = currentNode;
             *updated = true;
         }
@@ -130,8 +143,8 @@ __global__ void findMinDistanceKernel(const double* distances, const bool* visit
     
     // Write block result to global memory
     if (tid == 0) {
-        atomicMin((unsigned long long*)minDist, __double_as_longlong(sMinDist[0]));
-        if (__longlong_as_double(*minDist) == sMinDist[0]) {
+        atomicMinDouble(minDist, sMinDist[0]);
+        if (*minDist == sMinDist[0]) {
             *minNode = sMinNode[0];
         }
     }
