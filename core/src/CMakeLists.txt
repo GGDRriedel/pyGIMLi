@@ -5,6 +5,13 @@ link_directories(${libgimli_BINARY_DIR})
 file (GLOB SOURCE_FILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "*.cpp" "bert/*.cpp")
 file (GLOB HEADER_FILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "*.h" "bert/*.h")
 
+# Add CUDA source files if CUDA is enabled
+if (GIMLI_USE_CUDA)
+    file (GLOB CUDA_SOURCE_FILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "*.cu")
+    set(SOURCE_FILES ${SOURCE_FILES} ${CUDA_SOURCE_FILES})
+    message(STATUS "Including CUDA source files: ${CUDA_SOURCE_FILES}")
+endif()
+
 if (NOT MSVC)
 	list(REMOVE_ITEM SOURCE_FILES wingetopt.cpp)
 endif(NOT MSVC)
@@ -13,6 +20,14 @@ endif(NOT MSVC)
 #                       SHARED LIBRARY SET UP
 ###########################################################################
 add_library(${libgimli_TARGET_NAME} SHARED ${SOURCE_FILES} ${HEADER_FILES})
+
+# Set CUDA properties if enabled
+if (GIMLI_USE_CUDA)
+    set_target_properties(${libgimli_TARGET_NAME} PROPERTIES 
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_RESOLVE_DEVICE_SYMBOLS ON
+    )
+endif()
 
 include (GenerateExportHeader)
 
@@ -99,6 +114,12 @@ add_custom_command(TARGET ${libgimli_TARGET_NAME} POST_BUILD
 
 if (OpenMP_CXX_FOUND)
     target_link_libraries(${libgimli_TARGET_NAME} OpenMP::OpenMP_CXX)
+endif()
+
+# Link CUDA libraries if enabled
+if (GIMLI_USE_CUDA)
+    target_link_libraries(${libgimli_TARGET_NAME} CUDA::cudart CUDA::cuda_driver)
+    message(STATUS "Linking CUDA libraries to ${libgimli_TARGET_NAME}")
 endif()
 
 if (APPLE)

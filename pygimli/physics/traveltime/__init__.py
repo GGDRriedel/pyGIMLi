@@ -32,6 +32,24 @@ Manager = TravelTimeManager
 DataContainer = DataContainerTT
 TravelTimeModelling = TravelTimeDijkstraModelling
 
+def cudaAvailable():
+    """Check if CUDA is available for GPU acceleration.
+    
+    Returns
+    -------
+    bool
+        True if CUDA is available, False otherwise.
+    
+    Examples
+    --------
+    >>> import pygimli.physics.traveltime as tt
+    >>> if tt.cudaAvailable():
+    ...     print("CUDA is available!")
+    ... else:
+    ...     print("CUDA not available, using CPU")
+    """
+    return TravelTimeManager.cudaAvailable()
+
 __all__ = [
     'drawTravelTimeData',
     'drawVA',
@@ -48,5 +66,6 @@ __all__ = [
     'RefractionNLayerFix1stLayer',
     'shotReceiverDistances',
     'TravelTimeManager',
-    'TravelTimeDijkstraModelling'
+    'TravelTimeDijkstraModelling',
+    'cudaAvailable'
 ]

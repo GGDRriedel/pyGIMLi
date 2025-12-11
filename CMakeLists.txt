@@ -22,8 +22,38 @@ if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Sets the configuration to build (Release, Debug, etc...)")
 endif()
 
-project(libgimli)
+project(libgimli LANGUAGES CXX)
 include(CheckIncludeFileCXX)
+
+# Optional CUDA support for GPU acceleration
+option(USE_CUDA "Enable CUDA support for GPU acceleration" OFF)
+
+if(USE_CUDA)
+    enable_language(CUDA)
+    find_package(CUDAToolkit QUIET)
+    
+    if(CUDAToolkit_FOUND)
+        message(STATUS "CUDA Toolkit found: ${CUDAToolkit_VERSION}")
+        message(STATUS "CUDA Include: ${CUDAToolkit_INCLUDE_DIRS}")
+        set(GIMLI_USE_CUDA TRUE)
+        add_definitions(-DGIMLI_USE_CUDA)
+        
+        # Set CUDA standard to match C++ standard
+        set(CMAKE_CUDA_STANDARD 11)
+        set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+        
+        # CUDA compilation flags
+        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler -fPIC")
+        set(CMAKE_CUDA_FLAGS_RELEASE "${CMAKE_CUDA_FLAGS_RELEASE} -O3")
+        set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG} -g -G")
+    else()
+        message(WARNING "CUDA requested but CUDAToolkit not found. Building without CUDA support.")
+        set(GIMLI_USE_CUDA FALSE)
+    endif()
+else()
+    set(GIMLI_USE_CUDA FALSE)
+    message(STATUS "Building without CUDA support (use -DUSE_CUDA=ON to enable)")
+endif()
 
 message(STATUS "CMAKE_SYSTEM:           ${CMAKE_SYSTEM}")
 message(STATUS "CMAKE_SYSTEM_NAME:      ${CMAKE_SYSTEM_NAME}")

@@ -38,6 +38,10 @@
 #include <map>
 #include <omp.h>
 
+#ifdef GIMLI_USE_CUDA
+#include "ttdijkstramodelling_cuda.h"
+#endif
+
 
 namespace GIMLI {
 
@@ -157,17 +161,45 @@ IndexArray Dijkstra::shortestPath(Index start, Index end){
 //    }
 
 TravelTimeDijkstraModelling::TravelTimeDijkstraModelling(bool verbose)
-    : ModellingBase(verbose), background_(1e16){
+    : ModellingBase(verbose), background_(1e16), useCuda_(false){
     this->initJacobian();
 }
 
 TravelTimeDijkstraModelling::TravelTimeDijkstraModelling(Mesh & mesh,
                                                          DataContainer & dataContainer,
                                                          bool verbose)
-    : ModellingBase(dataContainer, verbose), background_(1e16) {
+    : ModellingBase(dataContainer, verbose), background_(1e16), useCuda_(false) {
 
     this->setMesh(mesh);
     this->initJacobian();
+}
+
+void TravelTimeDijkstraModelling::setUseCuda(bool useCuda) {
+#ifdef GIMLI_USE_CUDA
+    if (useCuda && !cuda::isCudaAvailable()) {
+        std::cerr << "Warning: CUDA requested but not available. Using CPU." << std::endl;
+        useCuda_ = false;
+    } else {
+        useCuda_ = useCuda;
+        if (useCuda_ && verbose_) {
+            std::cout << "CUDA acceleration enabled. Device count: " 
+                      << cuda::getCudaDeviceCount() << std::endl;
+        }
+    }
+#else
+    if (useCuda) {
+        std::cerr << "Warning: CUDA requested but not compiled. Using CPU." << std::endl;
+    }
+    useCuda_ = false;
+#endif
+}
+
+bool TravelTimeDijkstraModelling::cudaAvailable() {
+#ifdef GIMLI_USE_CUDA
+    return cuda::isCudaAvailable();
+#else
+    return false;
+#endif
 }
 
 RVector TravelTimeDijkstraModelling::createDefaultStartModel() {
@@ -403,6 +435,44 @@ RVector TravelTimeDijkstraModelling::response(const RVector & slowness) {
     Index nRecei = receNodeId_.size();
     RMatrix dMap(nShots, nRecei);
 
+#ifdef GIMLI_USE_CUDA
+    // Try CUDA acceleration if enabled
+    if (useCuda_) {
+        // Convert graph to CSR format for CUDA
+        const Graph & graph = dijkstra_.graph();
+        std::vector<int> graphRowPtr;
+        std::vector<int> graphColIdx;
+        std::vector<double> graphValues;
+        
+        // Build CSR representation
+        graphRowPtr.push_back(0);
+        for (const auto & nodeMap : graph) {
+            for (const auto & edge : nodeMap.second) {
+                graphColIdx.push_back(edge.first);
+                graphValues.push_back(edge.second.time());
+            }
+            graphRowPtr.push_back(graphColIdx.size());
+        }
+        
+        bool cudaSuccess = cuda::computeDijkstraDistancesCuda(
+            graphRowPtr, graphColIdx, graphValues,
+            mesh_->nodeCount(),
+            shotNodeId_, receNodeId_,
+            dMap
+        );
+        
+        if (!cudaSuccess) {
+            std::cerr << "CUDA computation failed, falling back to CPU" << std::endl;
+            useCuda_ = false;  // Disable CUDA for subsequent calls
+        } else {
+            if (verbose_) std::cout << "Computed with CUDA" << std::endl;
+            // Skip CPU computation and go directly to result extraction
+            goto extract_results;
+        }
+    }
+#endif
+
+    // CPU computation (default or fallback)
     Index nThreads = this->threadCount();
 
     distributeCalc(CreateDijkstraDistMT(dMap, this->dijkstra_,
@@ -418,6 +488,10 @@ RVector TravelTimeDijkstraModelling::response(const RVector & slowness) {
     //     }
     //     // exit(0);
     // }
+
+#ifdef GIMLI_USE_CUDA
+extract_results:
+#endif
     Index s = 0, g = 0;
 
     Index nData = dataContainer_->size();

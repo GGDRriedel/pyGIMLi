@@ -159,6 +159,15 @@ public:
 
     virtual ~TravelTimeDijkstraModelling() { }
 
+    /*! Enable or disable CUDA acceleration if available */
+    void setUseCuda(bool useCuda);
+    
+    /*! Check if CUDA acceleration is enabled */
+    bool useCuda() const { return useCuda_; }
+    
+    /*! Check if CUDA is available at runtime */
+    static bool cudaAvailable();
+
     virtual RVector createDefaultStartModel();
 
     RVector createGradientModel(double lBound, double uBound);
@@ -214,6 +223,8 @@ protected:
     /*! Way matrix of the last full jacobian generation. */
     std::vector < std::vector < IndexArray > > wayMatrix_;
 
+    /*! Flag to enable CUDA acceleration */
+    bool useCuda_;
 };
 
 /*! New Class derived from standard travel time modelling */

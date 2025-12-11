@@ -65,6 +65,63 @@ class TestTT(unittest.TestCase):
         J = fop.jacobian()
         np.testing.assert_allclose(J * self.slo, np.sqrt(5))
 
+    def test_CudaAvailability(self):
+        """Test CUDA availability detection."""
+        # Should not raise an error, just return True or False
+        cuda_available = TravelTimeManager.cudaAvailable()
+        self.assertIsInstance(cuda_available, bool)
+    
+    @unittest.skipIf(not TravelTimeManager.cudaAvailable(), "CUDA not available")
+    def test_CudaComputation(self):
+        """Test CUDA computation produces same results as CPU."""
+        # Create a manager with CUDA enabled
+        mgr_cuda = TravelTimeManager(useCuda=True)
+        mgr_cuda.fop.setData(self.data)
+        mgr_cuda.fop.setMesh(self.mesh, ignoreRegionManager=True)
+        
+        # Compute with CUDA
+        t_cuda = mgr_cuda.fop.response(self.slo)
+        
+        # Create a manager with CPU only
+        mgr_cpu = TravelTimeManager(useCuda=False)
+        mgr_cpu.fop.setData(self.data)
+        mgr_cpu.fop.setMesh(self.mesh, ignoreRegionManager=True)
+        
+        # Compute with CPU
+        t_cpu = mgr_cpu.fop.response(self.slo)
+        
+        # Results should be identical (or very close)
+        np.testing.assert_allclose(t_cuda, t_cpu, rtol=1e-10)
+    
+    def test_CudaFallback(self):
+        """Test CUDA fallback to CPU when CUDA is not available."""
+        # This should not raise an error even if CUDA is not available
+        mgr = TravelTimeManager(useCuda=True)
+        mgr.fop.setData(self.data)
+        mgr.fop.setMesh(self.mesh, ignoreRegionManager=True)
+        
+        # Computation should work (using CPU if CUDA not available)
+        t = mgr.fop.response(self.slo)
+        np.testing.assert_allclose(t, 1 + np.sqrt(2))
+    
+    def test_CudaToggle(self):
+        """Test enabling and disabling CUDA at runtime."""
+        mgr = TravelTimeManager()
+        
+        # Initially should be disabled
+        self.assertFalse(mgr.useCuda())
+        
+        # Enable CUDA
+        mgr.setUseCuda(True)
+        
+        # Check the state (might still be False if CUDA not available)
+        cuda_state = mgr.useCuda()
+        self.assertIsInstance(cuda_state, bool)
+        
+        # Disable CUDA
+        mgr.setUseCuda(False)
+        self.assertFalse(mgr.useCuda())
+
 if __name__ == '__main__':
 
     # fop  = TestTT()
